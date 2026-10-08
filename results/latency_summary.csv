@@ -1,0 +1,9 @@
+dataset,frame,n_points,stage,n_runs,p50_ms,p95_ms,cpu,threads,ram_gb,python,numpy
+kitti_mini,000011,108004,projection,20,16.02,17.72,Intel(R) Core(TM) i7-4810MQ CPU @ 2.80GHz,8,15.6,3.14.5,2.5.3
+kitti_mini,000011,108004,frame_setup,20,65.46,82.13,Intel(R) Core(TM) i7-4810MQ CPU @ 2.80GHz,8,15.6,3.14.5,2.5.3
+kitti_mini,000011,108004,qa_evaluate,20,43.66,60.53,Intel(R) Core(TM) i7-4810MQ CPU @ 2.80GHz,8,15.6,3.14.5,2.5.3
+kitti_mini,000011,108004,qa_full,20,105.56,121.09,Intel(R) Core(TM) i7-4810MQ CPU @ 2.80GHz,8,15.6,3.14.5,2.5.3
+nuscenes_mini_subset,scene-0103_010,34720,projection,20,3.92,4.73,Intel(R) Core(TM) i7-4810MQ CPU @ 2.80GHz,8,15.6,3.14.5,2.5.3
+nuscenes_mini_subset,scene-0103_010,34720,frame_setup,20,53.26,66.81,Intel(R) Core(TM) i7-4810MQ CPU @ 2.80GHz,8,15.6,3.14.5,2.5.3
+nuscenes_mini_subset,scene-0103_010,34720,qa_evaluate,20,16.76,19.26,Intel(R) Core(TM) i7-4810MQ CPU @ 2.80GHz,8,15.6,3.14.5,2.5.3
+nuscenes_mini_subset,scene-0103_010,34720,qa_full,20,75.27,100.21,Intel(R) Core(TM) i7-4810MQ CPU @ 2.80GHz,8,15.6,3.14.5,2.5.3

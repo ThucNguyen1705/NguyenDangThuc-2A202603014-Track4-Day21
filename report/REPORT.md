@@ -1,7 +1,5 @@
 # Báo cáo Day 6: Độ nhạy của projection LiDAR-camera với lệch calibration
 
-> Thay **mọi** ô có chữ ĐIỀN nằm trong ngoặc vuông bằng nội dung của bạn, xoá luôn cả dấu ngoặc vuông. Lệnh `python tools/check_submission.py` sẽ báo FAIL nếu còn sót bất kỳ chỗ nào.
-
 - **Họ tên:** Nguyễn Đăng Thực
 - **MSSV:** 2A202603014
 - **Lớp:** AI20K-T4
@@ -74,6 +72,42 @@ Bảng hoặc plot số liệu, kèm ảnh/video demo. Ghi rõ đường dẫn f
 - Ngày và đêm cho kết quả gần như nhau (yaw 1°: 87.9% ngày, 90.8% đêm), vì hit_ratio chỉ dùng hình học, không dùng ảnh. edge_score thì phụ thuộc ảnh và mật độ LiDAR.
 - **Bẫy hệ trục:** LiDAR nuScenes có x sang phải, y về phía trước, nên `--roll-deg` của nuScenes thực chất là pitch (2°: 85% frame bị cảnh báo, KITTI chỉ 5%), và `tx` của nuScenes là dịch ngang (20 cm: AUC 0.93). Khi so sánh phải ghép đúng trục vật lý: pitch KITTI ↔ roll nuScenes, ty KITTI ↔ tx nuScenes.
 
+**[B2] Bộ kiểm tra còn hoạt động khi LiDAR bị suy giảm?** 3 loại suy giảm × 4 mức, trên 20 frame KITTI, đo ở yaw 0° và 1°, seed = 0 (`src/exp_degradation.py`, `results/degradation_summary.csv`, `results/figures/degradation_sweep.png`).
+
+| Suy giảm | Điểm / frame | Điểm trên vật / frame | Phát hiện yaw 1° | Báo nhầm (calib đúng) | AUC hit_ratio | Điểm biên (edge) / frame |
+|---|---|---|---|---|---|---|
+| Không suy giảm | 119 318 | 1 640 | 10/20 | 0/20 | 0.966 | 512 |
+| random_dropout giữ 30% | 35 755 | 491 | 10/20 | 0/20 | 0.958 | 86 |
+| beam_dropout 64 → 8 beam | 13 505 | 210 | 10/20 | 1/20 | 0.954 | 40 |
+| gaussian_noise σ = 10 cm | 119 318 | 1 443 | 10/20 | 1/20 | 0.945 | 902 |
+
+hit_ratio là một **tỉ lệ**, nên bỏ bớt điểm đều không làm nó lệch: khả năng phát hiện giữ nguyên 10/20. Chỉ ở mức nặng nhất (8 beam, nhiễu 10 cm) mới xuất hiện 1 báo nhầm, do vật xa còn quá ít điểm. edge_score nhạy hơn nhiều: số điểm biên giảm 6 lần khi giữ 30% điểm, và **tăng giả** gần gấp đôi khi có nhiễu, vì nhiễu tạo ra "biên độ sâu" không có thật.
+
+![degradation](../results/figures/degradation_sweep.png)
+
+**[B3] Latency** (`src/bench_latency.py`, `results/latency.csv` có từng lần chạy, `results/latency_summary.csv`). Bỏ lần chạy đầu, 20 lần đo. CPU Intel Core i7-4810MQ @ 2.80 GHz (4 nhân / 8 luồng), RAM 15.6 GB, không dùng GPU, Python 3.14.5, NumPy 2.5.3.
+
+| Bước | KITTI 000011 (108 k điểm): p50 / p95 | nuScenes scene-0103_010 (34.7 k điểm): p50 / p95 |
+|---|---|---|
+| Chiếu điểm lên ảnh (2 hàm TODO) | 16.0 / 17.7 ms | 3.9 / 4.7 ms |
+| Chuẩn bị frame (điểm thuộc vật + Canny) | 65.5 / 82.1 ms | 53.3 / 66.8 ms |
+| Chấm 1 calib (hit_ratio + edge_score) | 43.7 / 60.5 ms | 16.8 / 19.3 ms |
+| Kiểm tra trọn 1 frame mới | **105.6 / 121.1 ms** | 75.3 / 100.2 ms |
+
+Kiểm tra trọn một frame KITTI mất hơn chu kỳ LiDAR 100 ms (10 Hz), nên không thể chạy trên mọi frame bằng CPU này. Xem mục 4.
+
+**[B6] Lỗi cài sẵn trong data/synthetic** (`python -m src.synthetic_audit`, `results/synthetic_audit.csv`, `results/figures/synthetic_sector_density.png`). Mỗi frame được so với **trung vị của các frame còn lại**.
+
+| Lỗi | Frame bị lỗi | Cách phát hiện (lệnh / code, con số) |
+|---|---|---|
+| Điểm NaN trong point cloud | cả 5 frame (22–23 điểm, 0.10%) | `starter.data_health`: cột `invalid_ratio` = 0.10%; `synthetic_audit`: `invalid_points` > 0. Nếu không lọc, phép chiếu sinh NaN |
+| Mất điểm theo sector (giả lập cảm biến bị che hoặc bẩn một phần) | 000003 | Mật độ ở azimuth **−38° … −8°** (phía trước bên phải) chỉ còn **28%** so với trung vị, trong khi các frame khác ≥ 81%. Tổng số điểm 22 063 (−7.2%); số điểm chiếu vào ảnh **2 593** so với 3 808–3 910 ở các frame khác (−33%). `empty_azimuth_bins` của data_health **không** bắt được, vì sector chỉ thưa đi chứ không trống hẳn |
+| Timestamp không đều | 000003 | `timestamps.txt`: 0.0, 0.1, 0.2, **0.4**, 0.5. Khoảng 000002 → 000003 là 0.2 s, các khoảng khác 0.1 s. Người đi bộ trong label vẫn đi đều 2.0 m mỗi frame (z = 5.71 → 7.71 → 9.71 → 11.71 → 13.71), nên khả năng cao là **timestamp ghi sai**, không phải mất frame |
+
+Đã kiểm tra thêm và **không** thấy lỗi ở: calib (md5 của 5 file giống hệt), label (IoU giữa 2D box và 3D box chiếu lên ≥ 0.975, đáy box nằm trên mặt đất LiDAR trong khoảng ±5 cm), hit_ratio ở calib gốc (99.4–100%), điểm Inf, điểm (0, 0, 0), điểm trùng lặp, cường độ (0.05–0.90 ở mọi frame).
+
+![synthetic](../results/figures/synthetic_sector_density.png)
+
 ## 3. Failure case
 
 Nêu khi nào hệ thống hoặc phương pháp fail, vì sao fail, và liên hệ tới lớp nào trong 6 lớp debug: I/O, Geometry, Time, Preprocess, Model, Metric.
@@ -115,20 +149,56 @@ Nêu khi nào hệ thống hoặc phương pháp fail, vì sao fail, và liên h
 
 Use-case cụ thể (ADAS / robot / drone), trade-off và bước tiếp theo.
 
-[ĐIỀN]
+**Use-case:** xe ADAS/robotaxi dùng LiDAR-camera fusion, ví dụ phanh khẩn cấp cho người đi bộ, trong đó độ sâu LiDAR được gán cho box của camera. Kết quả ở trên cho thấy giá đỡ chỉ cần xoay 1° là người ở xa hơn 30 m mất 94% điểm LiDAR (Failure 1), tức fusion gán sai độ sâu đúng cho vật nguy hiểm nhất.
+
+1. **Kiểm tra mỗi lần khởi động và chạy định kỳ ở 1 Hz** (không chạy ở 10 Hz: kiểm tra trọn 1 frame mất 106 ms p50 / 121 ms p95 trên CPU, theo B3). Trên xe không có label, nên dùng box của detector 3D (LiDAR) và detector 2D (camera) để tính hit_ratio. Chỉ tính trên **vật hẹp** (người, cyclist, cột), vì chúng nhạy hơn xe khoảng 4 lần.
+2. **Ngưỡng:** hit_ratio < 90% (0/20 báo nhầm trên KITTI sạch) thì ghi cờ "cần hiệu chuẩn lại" và báo về xưởng. Nếu < 80% kéo dài trên ≥ 20 frame, **hạ cấp fusion**: không gán độ sâu LiDAR cho box camera ở xa hơn 30 m và tăng khoảng cách an toàn. Một frame đơn chỉ bắt được yaw 1° ở 50% số frame, nên phải cộng dồn: trung bình hit_ratio trên 20 frame là 99.3% khi calib đúng, 91.7% ở 0.5° và 77.0% ở 1°.
+3. **Lỗi mà metric này không bắt được thì phải giám sát riêng.** Lỗi Time: ghi log |t_cam − t_lidar| × tốc độ xe, cảnh báo khi > 0.1 m, và bắt buộc đồng bộ PTP và bù chuyển động (Failure 2). Lệch tịnh tiến ≤ 10 cm: không phát hiện được (≤ 2/20 frame), nhưng cũng chỉ gây ≤ 8 px ở 10 m. Vì vậy chấp nhận được, chỉ cần kiểm tra bằng bảng hiệu chuẩn (target) ở mỗi lần bảo dưỡng.
+
+**Đánh đổi:** (a) hit_ratio chính xác (AUC 0.97 ở 1°) nhưng phụ thuộc chất lượng detector. Box lỏng hoặc lệch của detector sẽ bị tính nhầm thành lỗi calib (mức sàn 92% ở 000048), nên ngưỡng phải nới và độ nhạy giảm. (b) edge_score không cần detector, nhưng yếu (AUC 0.71), sai ở cảnh xa và vô dụng với LiDAR 32 beam. Chỉ nên dùng làm tín hiệu phụ, so sánh tương đối với calib ± 0.5°. (c) Tần suất kiểm tra so với CPU: 1 Hz chỉ tốn khoảng 10% một nhân CPU, đổi lại phát hiện chậm khoảng 20 s.
+
+**Chỉ số cần ghi log mỗi lần kiểm tra:** hit_ratio theo frame và theo class (kèm số vật, số điểm dùng để tính), độ dịch pixel trung vị, edge_score và số điểm biên, inside_image, t_cam − t_lidar, tốc độ xe, mã phiên bản calib (hash), sự kiện va chạm hoặc rung mạnh từ IMU, nhiệt độ cảm biến.
 
 ## 5. Cách chạy lại
 
 Các lệnh tái tạo lại toàn bộ kết quả từ repo sạch.
 
+Môi trường: Python 3.10+ (đã chạy bằng 3.14.5), `pip install -r requirements.txt`, không cần GPU. Chạy mọi lệnh từ thư mục gốc của repo, theo đúng thứ tự (bước sau đọc CSV của bước trước). Tổng thời gian khoảng 2 phút trên CPU i7-4810MQ. Mọi script trong `src/` đều có `--help` và chạy được không cần tham số **[B4]**.
+
 ```bash
+# CP0: kiểm tra dữ liệu
+python tools/verify_data.py --data-root data/kitti_mini
+python tools/verify_data.py --data-root data/nuscenes_mini_subset
+python -m starter.data_health --data-root data/synthetic
+
 # CP2: tự kiểm tra 2 hàm TODO và chạy demo overlay
 python -m src.test_projection
 python -m starter.projection --data-root data/synthetic --frame 000000
 python -m starter.projection --data-root data/kitti_mini --frame 000011
 python -m starter.projection --data-root data/nuscenes_mini_subset --frame scene-0103_010
 python -m src.demo_overlay          # -> results/figures/demo_overlay_3dist.png (000019 gần, 000011 giữa, 000004 xa)
+
+# CP3: thí nghiệm chính
+python -m src.exp_yaw_sweep --data-root data/kitti_mini --frames 000008 000011 000049   # script mẫu -> results/yaw_perturb_sweep.csv
+python -m src.exp_calib_sweep                                                           # KITTI, 20 frame, 6 trục -> results/calib_sweep*.csv
+python -m src.exp_calib_sweep --data-root data/nuscenes_mini_subset --frame-step 4 --out results/calib_sweep_nusc.csv --out-objects results/calib_sweep_nusc_objects.csv
+python -m src.plot_calib_sweep      # bảng summary_*.csv, detection_rates.csv + 7 biểu đồ trong results/figures/
+
+# CP4: ảnh failure case
+python -m src.make_failure_figures  # -> results/figures/fail_01_*.png, fail_02_*.png, fail_03_*.png
+python -m starter.projection --data-root data/nuscenes_mini_subset --frame scene-0103_010 --ignore-ego-motion
+
+# Bonus
+python -m src.exp_degradation       # [B2] -> results/degradation_*.csv, results/figures/degradation_sweep.png
+python -m src.bench_latency         # [B3] -> results/latency*.csv (số đo phụ thuộc máy)
+python -m src.synthetic_audit       # [B6] -> results/synthetic_audit.csv, results/figures/synthetic_sector_density.png
+
+# Kiểm tra tái lập: chạy lại phải ra file giống hệt
+python -m src.exp_calib_sweep --out results/check_rerun.csv --out-objects results/check_rerun_obj.csv
+python -c "import filecmp; print('GIỐNG HỆT' if filecmp.cmp('results/calib_sweep.csv', 'results/check_rerun.csv', shallow=False) else 'KHÁC NHAU')"
 ```
+
+**[B4] Tool dùng lại được:** `python -m src.exp_calib_sweep --help` quét lệch calib cho bất kỳ dataset KITTI hoặc nuScenes nào (chọn trục, mức, class, frame). `src/calib_qa.py` (lớp `FrameQA`) cung cấp hit_ratio và edge_score dưới dạng thư viện. `python -m src.synthetic_audit --data-root <thư mục>` kiểm tra bất thường của một chuỗi frame. **Checklist debug LiDAR-camera** rút ra từ bài này, kiểm tra theo thứ tự: (1) điểm (10, 0, 0) phải cho z_cam ≈ 10 và pixel gần giữa ảnh; (2) lọc NaN và z_cam ≤ 0 trước khi chia; (3) so hit_ratio ở calib gốc: nếu dưới 95% thì nghi label hoặc metric trước khi nghi calib; (4) xác định quy ước trục LiDAR của dataset trước khi đặt tên roll/pitch/tx/ty; (5) với nuScenes, in t_cam − t_lidar và so ảnh có / không có `--ignore-ego-motion`; (6) metric không cần label phải được kiểm chứng trên cảnh xa và cảnh LiDAR thưa.
 
 ## 6. Khai báo sử dụng AI
 
@@ -136,4 +206,6 @@ Ghi rõ đã dùng công cụ AI nào, dùng vào việc gì, và bạn đã t�
 
 | Công cụ | Dùng cho việc gì | Bạn đã kiểm chứng thế nào |
 |---|---|---|
-| [ĐIỀN] | | |
+| Claude Code (model Claude Opus 5.5, Anthropic) | Đọc đề và hướng dẫn, viết code 2 hàm TODO trong `starter/projection.py`, viết toàn bộ script trong `src/` (mở rộng từ script mẫu `exp_yaw_sweep.py` của codelab: thêm 6 trục lệch, tách theo class/khoảng cách, metric edge_score, nuScenes, suy giảm dữ liệu, latency, audit synthetic), vẽ biểu đồ, phân tích số liệu và soạn nháp REPORT | Self-test `python -m src.test_projection` (điểm (10, 0, 0) → z_cam = 9.73, pixel (614, 175); NaN, điểm sau camera, điểm ngoài ảnh bị loại). Số điểm chiếu vào ảnh khớp đúng hướng dẫn (3910 / 19946 / 3120). Bảng script mẫu khớp đúng 15 số trong hướng dẫn. Chạy lại thí nghiệm và so `filecmp` ra GIỐNG HỆT. Đối chiếu số đo với lý thuyết (yaw 1° → 13.3 px so với f·tan 1° = 12.6 px; dịch ngang 10 cm → 8.4 / 3.5 / 1.8 px ở 0–15 / 15–30 / >30 m, giảm theo 1/z đúng dạng f·d/z). Xem bằng mắt mọi ảnh overlay và ảnh failure. Mọi con số trong REPORT đều lấy từ CSV do code trong repo tạo ra |
+| Script mẫu của codelab (Phần 05, mục 5.2) | Điểm xuất phát cho `src/exp_yaw_sweep.py` (hàm `points_in_box`, `run_one`) | Giữ nguyên để đối chiếu với bảng kỳ vọng; phần mở rộng nằm trong các file khác của `src/` |
+| Tham khảo ý tưởng | edge_score dựa trên ý tưởng của Levinson & Thrun, "Automatic Online Calibration of Cameras and Lasers" (RSS 2013). Cài đặt đơn giản hoá, tự viết | Ghi nguồn ở đầu `src/calib_qa.py` |

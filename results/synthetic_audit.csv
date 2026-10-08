@@ -1,0 +1,6 @@
+frame,n_points,invalid_points,inside_image,min_sector_ratio,worst_sector_deg,time_gap_s,calib_md5,min_label_iou_2d_vs_3d,flags
+000000,23953,23,3910,0.81,-24,,c85bc7d1,0.986,invalid_points
+000001,23781,23,3808,0.81,-12,0.1,c85bc7d1,0.976,invalid_points
+000002,23790,23,3862,0.9,106,0.1,c85bc7d1,0.975,invalid_points
+000003,22063,22,2593,0.28,-35,0.2,c85bc7d1,0.975,invalid_points;low_points;sector_dropout;image_points;time_gap
+000004,23760,23,3853,0.88,45,0.1,c85bc7d1,0.975,invalid_points

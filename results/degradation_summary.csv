@@ -1,0 +1,13 @@
+degradation,level,points_per_frame,object_points_per_frame,false_alarm_rate,detection_rate,hit_auc,edge_points_per_frame,edge_rank
+random_dropout,1.0,119318,1639.6,0.0,0.5,0.966,511.8,0.9
+random_dropout,0.7,83614,1144.8,0.0,0.5,0.963,317.4,0.85
+random_dropout,0.5,59840,819.0,0.0,0.5,0.963,195.8,0.8
+random_dropout,0.3,35755,491.0,0.0,0.5,0.958,85.8,0.9
+beam_dropout,1.0,119318,1639.6,0.0,0.5,0.966,511.8,0.9
+beam_dropout,2.0,57263,816.7,0.0,0.5,0.963,152.3,0.85
+beam_dropout,4.0,28634,424.1,0.0,0.5,0.965,79.0,0.8
+beam_dropout,8.0,13505,210.2,0.05,0.5,0.954,40.2,0.8
+gaussian_noise,0.0,119318,1639.6,0.0,0.5,0.966,511.8,0.9
+gaussian_noise,0.02,119318,1619.0,0.0,0.5,0.96,619.8,0.95
+gaussian_noise,0.05,119318,1558.9,0.0,0.5,0.958,707.8,1.0
+gaussian_noise,0.1,119318,1443.0,0.05,0.5,0.945,902.0,0.9
