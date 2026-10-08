@@ -47,7 +47,12 @@ Use-case cụ thể (ADAS / robot / drone), trade-off và bước tiếp theo.
 Các lệnh tái tạo lại toàn bộ kết quả từ repo sạch.
 
 ```bash
-[ĐIỀN]
+# CP2: tự kiểm tra 2 hàm TODO và chạy demo overlay
+python -m src.test_projection
+python -m starter.projection --data-root data/synthetic --frame 000000
+python -m starter.projection --data-root data/kitti_mini --frame 000011
+python -m starter.projection --data-root data/nuscenes_mini_subset --frame scene-0103_010
+python -m src.demo_overlay          # -> results/figures/demo_overlay_3dist.png (000019 gần, 000011 giữa, 000004 xa)
 ```
 
 ## 6. Khai báo sử dụng AI
